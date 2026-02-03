@@ -81,6 +81,10 @@ python scripts\generate_ner_data.py --records 200 # feel free to edit the exampl
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
+**Available Models:**
+- `gpt-4o-mini` (default) - Fast, cost-effective, ~90% F1 score
+- `gpt-4o` - Higher accuracy, more expensive
+
 ### 2. Run Experiment
 
 ```powershell
@@ -142,9 +146,9 @@ With `gpt-4o-mini` on 100 samples:
 
 | Metric | Regex | spaCy | DSPy | 
 |--------|-------|-------|------|
-| Overall F1 | ~0.65 | ~0.80 | ~0.90 |
-| Cost | $0.00 | $0.00 | ~$0.02 |
-| Latency | ~0.3ms | ~50ms | ~500ms |
+| Overall F1 | ~0.43 | ~0.70 | ~0.90 |
+| Cost | $0.00 | $0.00 | ~$0.003 |
+| Latency | ~0.035ms | ~15ms | ~1.6s |
 
 **Key Insight**: Clear progression from rule-based → ML → LLM approaches, with DSPy achieving the highest accuracy through contextual understanding.
 

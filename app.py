@@ -105,20 +105,30 @@ model_name = st.sidebar.selectbox(
 
 # Sample size
 sample_size = st.sidebar.slider(
-    "Number of Test Samples",
+    "Records to Test",
     min_value=5,
     max_value=100,
     value=20,
     step=5,
-    help="More samples = more accurate results but higher cost"
+    help="More records = more accurate results but higher cost"
 )
 
-# Display model info
+# Display model info with estimated cost
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 Model Info")
 model_config = MODELS[model_name]
-st.sidebar.write(f"**Input:** ${model_config['cost_per_1k_input']:.5f}/1K")
-st.sidebar.write(f"**Output:** ${model_config['cost_per_1k_output']:.5f}/1K")
+
+# Estimate cost based on typical token usage
+# Assume ~100 input tokens and ~50 output tokens per sample
+avg_input_tokens = 100 * sample_size
+avg_output_tokens = 50 * sample_size
+estimated_cost = (
+    (avg_input_tokens / 1000) * model_config['cost_per_1k_input'] +
+    (avg_output_tokens / 1000) * model_config['cost_per_1k_output']
+)
+
+st.sidebar.write(f"**Estimated Cost:** ${estimated_cost:.4f}")
+st.sidebar.caption(f"Based on {sample_size} records with {model_name}")
 
 
 def format_time(seconds):
@@ -260,16 +270,16 @@ if st.sidebar.button("🚀 Run Experiment", type="primary", use_container_width=
             st.metric(
                 "🧠 spaCy",
                 f"{spacy_results['metrics']['overall_f1']:.1%}",
-                delta=f"{delta_vs_regex:+.1%}",
+                delta=f"{delta_vs_regex:+.1%} from Regex",
                 help="Traditional ML model"
             )
         
         with col3:
-            delta_vs_spacy = dspy_results['metrics']['overall_f1'] - spacy_results['metrics']['overall_f1']
+            delta_vs_regex = dspy_results['metrics']['overall_f1'] - regex_results['metrics']['overall_f1']
             st.metric(
                 "🤖 DSPy",
                 f"{dspy_results['metrics']['overall_f1']:.1%}",
-                delta=f"{delta_vs_spacy:+.1%}",
+                delta=f"{delta_vs_regex:+.1%} from Regex",
                 help="LLM-powered extraction"
             )
         
