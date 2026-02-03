@@ -1,0 +1,8 @@
+dspy-ai>=2.4.0
+openai>=1.0.0
+python-dotenv>=1.0.0
+streamlit>=1.30.0
+plotly>=5.18.0
+datasets>=2.16.0
+spacy>=3.7.0
+pandas>=2.0.0
