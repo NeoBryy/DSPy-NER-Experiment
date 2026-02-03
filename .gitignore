@@ -7,6 +7,9 @@ __pycache__/
 outputs/
 *.pyc
 
+# Generated data (users must generate their own)
+src/data/ner_samples.json
+
 # IDE
 .vscode/
 .idea/

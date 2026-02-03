@@ -104,18 +104,22 @@ def generate_sample():
     }
 
 
-def generate_dataset(num_samples=200):
-    """Generate synthetic NER dataset."""
+def generate_dataset(num_records=200):
+    """Generate synthetic NER dataset.
     
-    print(f"Generating {num_samples} synthetic NER samples...")
+    Args:
+        num_records: Number of NER samples to generate
+    """
+    
+    print(f"Generating {num_records} synthetic NER samples...")
     
     samples = []
-    for i in range(num_samples):
+    for i in range(num_records):
         sample = generate_sample()
         samples.append(sample)
         
         if (i + 1) % 50 == 0:
-            print(f"Generated {i + 1}/{num_samples} samples...")
+            print(f"Generated {i + 1}/{num_records} samples...")
     
     # Save to data directory
     output_path = Path(__file__).parent.parent / 'src' / 'data' / 'ner_samples.json'
@@ -147,8 +151,8 @@ def generate_dataset(num_samples=200):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Generate synthetic NER data')
-    parser.add_argument('--samples', type=int, default=200, help='Number of samples to generate')
+    parser.add_argument('--records', type=int, default=200, help='Number of records to generate')
     args = parser.parse_args()
     
     random.seed(42)  # For reproducibility
-    generate_dataset(args.samples)
+    generate_dataset(args.records)

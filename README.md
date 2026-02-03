@@ -74,6 +74,9 @@ pip install -r requirements.txt
 # Download spaCy model
 python -m spacy download en_core_web_sm
 
+# Generate NER dataset (200 records)
+python scripts\generate_ner_data.py --records 200
+
 # Create .env file with your OpenAI API key (following .env.example structure)
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
@@ -155,13 +158,18 @@ This demo shows the trade-offs between different NER approaches:
 
 ## 📝 Dataset
 
-The demo uses 200 synthetic NER samples with realistic entities:
-- 137 Person entities
-- 200 Organization entities
-- 162 Location entities
-- 166 Miscellaneous entities
+**Generated during setup** using `scripts/generate_ner_data.py`:
+- Creates `src/data/ner_samples.json` with synthetic samples
+- Default: 200 records with clean ground truth
+- Also includes `src/data/ground_truth.json` (CoNLL-2003 test set)
 
-Generated using templates to ensure clean ground truth.
+**Sample statistics** (200 records):
+- 137 Person entities (PER)
+- 200 Organization entities (ORG)
+- 162 Location entities (LOC)
+- 166 Miscellaneous entities (MISC)
+
+Generated using templates to ensure clean, unambiguous labels.
 
 ## 🛠️ Customization
 
@@ -171,10 +179,15 @@ Generated using templates to ensure clean ground truth.
 python experiments\run_baseline_comparison.py --model gpt-4o
 ```
 
-### Generate More Data
+### Generate Custom Dataset
+
+Customize the number of records or modify entity types:
 
 ```powershell
-python scripts\generate_ner_data.py --samples 500
+# Generate more records
+python scripts\generate_ner_data.py --records 500
+
+# Edit scripts/generate_ner_data.py to customize entity templates
 ```
 
 ### Modify Entity Types
