@@ -75,31 +75,33 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
 # Generate NER dataset (200 records)
-python scripts\generate_ner_data.py --records 200
+python scripts\generate_ner_data.py --records 200 # feel free to edit the examples for each entity!
 
-# Create .env file with your OpenAI API key (following .env.example structure)
+# Create .env file with your OpenAI API key (following .env.example structure) https://platform.openai.com/api-keys
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
 ### 2. Run Experiment
 
 ```powershell
-# Run 3-way comparison with 100 samples
+# Run 3-way comparison with 100 samples (terminal)
 python experiments\run_baseline_comparison.py --samples 100
 
-# Or use a different model
+# Or use a different model (also in terminal)
 python experiments\run_baseline_comparison.py --model gpt-4o --samples 50
 ```
 
 ### 3. Launch Dashboard
 
 ```powershell
+# This loads the streamlit app, which allows you to configure and run experiments like the
+# example above but with nicely formatted visuals and outputs to explore 📈
 streamlit run app.py
 ```
 
 Then open http://localhost:8501 in your browser.
 
-## 📊 What Gets Measured
+## 📊 What Gets Measured (Default Configuration)
 
 ### Entity Types
 - **PER** (Person): Names of people
@@ -123,17 +125,15 @@ dspy-llm/
 │   ├── baselines/
 │   │   ├── regex_ner.py            # Regex baseline
 │   │   └── spacy_ner.py            # spaCy baseline
-│   ├── data/
-│   │   └── ner_samples.json        # Test dataset (200 samples)
 │   └── config.py                   # Model configurations
 ├── evaluation/
 │   └── metrics.py                  # P/R/F1 calculations
 ├── experiments/
 │   └── run_baseline_comparison.py  # CLI experiment runner
 ├── scripts/
-│   └── generate_ner_data.py        # Dataset generator
+│   └── generate_ner_data.py        # Dataset generator (will create ner_samples.json in src/data folder)
 ├── app.py                          # Streamlit dashboard
-└── outputs/                        # Experiment results
+└── outputs/                        # Experiment results (json files if you wanted to create your own visuals)
 ```
 
 ## 🔬 Expected Results
@@ -161,7 +161,6 @@ This demo shows the trade-offs between different NER approaches:
 **Generated during setup** using `scripts/generate_ner_data.py`:
 - Creates `src/data/ner_samples.json` with synthetic samples
 - Default: 200 records with clean ground truth
-- Also includes `src/data/ground_truth.json` (CoNLL-2003 test set)
 
 **Sample statistics** (200 records):
 - 137 Person entities (PER)
