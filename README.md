@@ -14,8 +14,8 @@ This project showcases the evolution of Named Entity Recognition from simple pat
 
 ### 1️⃣ Regex (Rule-Based)
 Uses hand-crafted pattern matching rules:
-- **Person Names**: Detects titles (Mr., Dr., President) + capitalized names
-- **Organizations**: Matches company suffixes (Inc., Corp., LLC) and acronyms
+- **Person Names**: Detects titles (Mr., Dr., President) + capitalised names
+- **Organisations**: Matches company suffixes (Inc., Corp., LLC) and acronyms
 - **Locations**: Identifies prepositions ("in Paris") and common place names
 - **Miscellaneous**: Pattern matches for products, events, and awards
 
@@ -34,7 +34,7 @@ Uses a pre-trained statistical model (`en_core_web_sm`):
 
 ### 3️⃣ DSPy (LLM-Powered)
 Uses large language models with structured prompting:
-- **Prompting**: DSPy generates optimized prompts for entity extraction
+- **Prompting**: DSPy generates optimised prompts for entity extraction
 - **Signature**: Defines input (text) → output (entities by type) mapping
 - **Context**: LLM understands semantic meaning and context
 - **Flexibility**: Can extract any entity type without retraining
@@ -54,7 +54,7 @@ MISC: None
 ```
 
 **Pros**: Best accuracy, handles context and ambiguity, no training needed  
-**Cons**: Costs money, slower, requires API access
+**Cons**: Costs money, slower, requires API access or local LLM
 
 ## 🚀 Quick Start
 
@@ -74,7 +74,7 @@ pip install -r requirements.txt
 # Download spaCy model
 python -m spacy download en_core_web_sm
 
-# Create .env file with your OpenAI API key
+# Create .env file with your OpenAI API key (following .env.example structure)
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
@@ -104,17 +104,11 @@ Then open http://localhost:8501 in your browser.
 - **LOC** (Location): Cities, countries, regions
 - **MISC** (Miscellaneous): Products, events, other entities
 
-### Metrics
-- **Precision**: Of extracted entities, how many were correct?
-  - Formula: `TP / (TP + FP)`
-- **Recall**: Of all correct entities, how many were found?
-  - Formula: `TP / (TP + FN)`
-- **F1 Score**: Harmonic mean of precision and recall
-  - Formula: `2 × (P × R) / (P + R)`
-- **Cost**: Estimated API cost for LLM calls
-- **Latency**: Time per extraction
-
-> **Note**: Metrics use micro-averaging (aggregate TP/FP/FN across all samples).
+- **Precision**: % of extracted entities that were correct
+- **Recall**: % of correct entities that were found  
+- **F1 Score**: Balance between precision and recall (higher is better)
+- **Cost**: Estimated API cost (LLM only)
+- **Latency**: Average time per extraction
 
 ## 📁 Project Structure
 

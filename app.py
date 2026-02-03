@@ -37,18 +37,12 @@ with st.expander("📚 What is Named Entity Recognition (NER)?", expanded=False)
     - **LOC** (Location): Cities, countries, regions (e.g., "San Francisco", "Europe")
     - **MISC** (Miscellaneous): Products, events, other entities (e.g., "iPhone", "Olympics")
     
-    ### Evaluation Metrics
-    - **Precision**: Of all entities we extracted, how many were correct?
-      - Formula: `True Positives / (True Positives + False Positives)`
-      - Example: If we extract 10 entities and 8 are correct → Precision = 80%
-    
-    - **Recall**: Of all correct entities, how many did we find?
-      - Formula: `True Positives / (True Positives + False Negatives)`
-      - Example: If there are 12 entities and we found 8 → Recall = 67%
-    
-    - **F1 Score**: Harmonic mean of Precision and Recall
-      - Formula: `2 × (Precision × Recall) / (Precision + Recall)`
-      - Balances precision and recall into a single metric
+    **📊 Metrics Explained:**
+    - **Precision**: % of extracted entities that were correct
+    - **Recall**: % of correct entities that were found
+    - **F1 Score**: Balance between precision and recall (higher is better)
+    - **Cost**: Estimated API cost (LLM only)
+    - **Latency**: Average time per extraction
     """)
 
 with st.expander("🔧 How Each Approach Works", expanded=False):
@@ -56,7 +50,7 @@ with st.expander("🔧 How Each Approach Works", expanded=False):
     ### 1️⃣ Regex (Rule-Based)
     Uses hand-crafted pattern matching rules:
     - **Person Names**: Detects titles (Mr., Dr., President) + capitalized names
-    - **Organizations**: Matches company suffixes (Inc., Corp., LLC) and acronyms
+    - **Organizations**: Matches Company suffixes (Inc., Corp., LLC) and acronyms
     - **Locations**: Identifies prepositions ("in Paris") and common place names
     - **Miscellaneous**: Pattern matches for products, events, and awards
     
