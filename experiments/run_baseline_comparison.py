@@ -22,7 +22,7 @@ def load_test_data():
         return json.load(f)
 
 
-def run_experiment(model_name='gpt-4o-mini', num_samples=100):
+def run_experiment(model_name='qwen-80b', num_samples=100):
     """
     Run NER experiment comparing Regex vs spaCy vs DSPy.
     
@@ -190,8 +190,8 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=100):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Run NER 3-way comparison')
-    parser.add_argument('--model', default='gpt-4o-mini',
-                       choices=['gpt-4o-mini', 'gpt-4o', 'o1-mini'],
+    parser.add_argument('--model', default='qwen-80b',
+                       choices=['gpt-4o-mini', 'gpt-4o', 'o1-mini','qwen-80b'],
                        help='Model to use for DSPy')
     parser.add_argument('--samples', type=int, default=100,
                        help='Number of samples to evaluate')
