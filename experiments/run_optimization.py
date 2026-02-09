@@ -10,7 +10,13 @@ Compares:
 import json
 import time
 import random
+import sys
+import os
 from pathlib import Path
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).parent.parent))
+
 import dspy
 from dspy.teleprompt import BootstrapFewShot
 

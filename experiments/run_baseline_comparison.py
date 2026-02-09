@@ -4,8 +4,13 @@ Run 3-way comparison: Regex vs spaCy vs DSPy for Named Entity Recognition.
 
 import json
 import time
+import sys
+import os
 from pathlib import Path
 from datetime import datetime
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).parent.parent))
 
 import dspy
 from src.config import get_lm, MODELS

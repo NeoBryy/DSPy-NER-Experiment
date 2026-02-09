@@ -5,8 +5,13 @@ Evaluates and reports explicit vs implicit performance separately.
 
 import json
 import time
+import sys
+import os
 from pathlib import Path
 from datetime import datetime
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).parent.parent))
 
 import dspy
 from src.config import get_lm, MODELS
