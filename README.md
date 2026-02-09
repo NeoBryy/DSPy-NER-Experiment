@@ -154,6 +154,14 @@ The `experiments/` directory contains scripts to test different aspects of NER p
 - **Metrics**: Raw token counts (cached vs uncached).
 - **Use case**: Verifying that caching is active and calculating cost savings.
 
+### 5. Automatic Prompt Optimization
+`experiments/run_optimization.py`
+- **Tests**: Can DSPy's `BootstrapFewShot` optimizer beat manual prompting?
+- **Compares**: 
+  1. Zero-Shot Baseline (Uncompiled)
+  2. Manual Few-Shot (CoT + Hand-picked examples)
+  3. Auto-Optimized (DSPy Compiled)
+- **Key Finding**: For complex implicit reasoning, **naive auto-optimization (53.5%)** failed to match **manual CoT (72.9%)**. This validates the need for "human-in-the-loop" design for advanced logic tasks.
 
 ## 📊 What Gets Measured (Default Configuration)
 

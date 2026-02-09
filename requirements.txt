@@ -7,3 +7,4 @@ tenacity>=8.0.0
 datasets>=2.16.0
 spacy>=3.7.0
 pandas>=2.0.0
+anyio

@@ -6,6 +6,49 @@ Measures performance on sentence 1 (explicit) and sentence 2 (implicit) independ
 from collections import defaultdict
 
 
+
+from difflib import SequenceMatcher
+
+def compute_similarity(a, b):
+    """Compute character-level similarity ratio (0.0 - 1.0) case-insensitive."""
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+def score_predictions_vs_truth(preds, truth_entities, threshold=0.8):
+    """
+    Greedy matching of predictions to ground truth.
+    Returns:
+        tp_score: Sum of completion scores for matched pairs
+        matched_preds: Set of predictions that were matched
+    """
+    # Calculate all pairwise scores
+    matches = []
+    for p in preds:
+        for t in truth_entities:
+            score = compute_similarity(p, t)
+            if score >= threshold:
+                matches.append((score, p, t))
+    
+    # Sort by score descending to be greedy
+    matches.sort(key=lambda x: x[0], reverse=True)
+    
+    tp_score = 0.0
+    matched_preds = set()
+    matched_truth = set()
+    
+    for score, p, t in matches:
+        if p not in matched_preds and t not in matched_truth:
+            tp_score += score
+            matched_preds.add(p)
+            matched_truth.add(t)
+    
+    return tp_score, matched_preds
+
+def filter_preds_by_text(preds, text):
+    """Return predictions that appear in the text (case-insensitive)."""
+    text_lower = text.lower()
+    return {p for p in preds if p.lower() in text_lower}
+    
+    
 class MultiSentenceNEREvaluator:
     """
     Evaluates NER performance on multi-sentence samples.
@@ -52,46 +95,7 @@ class MultiSentenceNEREvaluator:
         implicit_fn = defaultdict(int)
         
         # Process each sample
-        from difflib import SequenceMatcher
 
-        def compute_similarity(a, b):
-            """Compute character-level similarity ratio (0.0 - 1.0) case-insensitive."""
-            return SequenceMatcher(None, a.lower(), b.lower()).ratio()
-
-        def score_predictions_vs_truth(preds, truth_entities, threshold=0.8):
-            """
-            Greedy matching of predictions to ground truth.
-            Returns:
-                tp_score: Sum of completion scores for matched pairs
-                matched_preds: Set of predictions that were matched
-            """
-            # Calculate all pairwise scores
-            matches = []
-            for p in preds:
-                for t in truth_entities:
-                    score = compute_similarity(p, t)
-                    if score >= threshold:
-                        matches.append((score, p, t))
-            
-            # Sort by score descending to be greedy
-            matches.sort(key=lambda x: x[0], reverse=True)
-            
-            tp_score = 0.0
-            matched_preds = set()
-            matched_truth = set()
-            
-            for score, p, t in matches:
-                if p not in matched_preds and t not in matched_truth:
-                    tp_score += score
-                    matched_preds.add(p)
-                    matched_truth.add(t)
-            
-            return tp_score, matched_preds
-
-        def filter_preds_by_text(preds, text):
-            """Return predictions that appear in the text (case-insensitive)."""
-            text_lower = text.lower()
-            return {p for p in preds if p.lower() in text_lower}
 
         # Process each sample
         for pred, sample in zip(predictions, self.test_data):

@@ -268,23 +268,25 @@ def _render_cost_latency(regex_results, spacy_results, dspy_results):
     """Render cost and latency metrics."""
     st.subheader("Cost & Latency")
     
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    # Create 3 columns for models
+    col1, col2, col3 = st.columns(3)
     
+    # 1. Regex Column
     with col1:
-        st.metric(
-            "Cost (Regex)",
-            "$0.00",
-            help="Regex is free"
-        )
+        st.markdown("##### 🔧 Regex")
+        st.metric("Cost", "$0.00", help="Regex is free")
+        st.metric("Latency", format_time(regex_results['avg_latency']), help="Average time per sample")
     
+    # 2. spaCy Column
     with col2:
-        st.metric(
-            "Cost (spaCy)",
-            "$0.00",
-            help="spaCy is free"
-        )
+        st.markdown("##### 🧠 spaCy")
+        st.metric("Cost", "$0.00", help="spaCy is free")
+        st.metric("Latency", format_time(spacy_results['avg_latency']), help="Average time per sample")
     
+    # 3. DSPy Column
     with col3:
+        st.markdown("##### 🤖 DSPy")
+        
         # Calculate cache hit rate if available
         cache_info = ""
         if 'token_stats' in dspy_results and dspy_results['token_stats']['total_prompt_tokens'] > 0:
@@ -294,28 +296,40 @@ def _render_cost_latency(regex_results, spacy_results, dspy_results):
                 cache_info = f" ({cache_rate:.0%} cached)"
         
         st.metric(
-            "Cost (DSPy)",
+            "Cost",
             f"${dspy_results['estimated_cost']:.4f}{cache_info}",
-            help="Total estimated cost for DSPy. OpenAI's prompt caching reduces costs by ~50% on cached tokens (requires 1024+ token prefix)."
+            help="Estimated API cost. OpenAI caching reduces costs by ~50% on cached tokens."
         )
+        st.metric("Latency", format_time(dspy_results['avg_latency']), help="Average time per sample")
+
+    # Add optional chart for latency comparison (log scale often useful due to massive diff)
+    # Regex ~0.03ms, spaCy ~15ms, DSPy ~1.5s -> 1,500ms
+    # Linear scale makes Regex/spaCy invisible.
     
-    with col4:
-        st.metric(
-            "Latency (Regex)",
-            format_time(regex_results['avg_latency']),
-            help="Average time per sample for regex"
-        )
+    st.markdown("---")
+    st.caption("Latency Comparison (Log Scale)")
     
-    with col5:
-        st.metric(
-            "Latency (spaCy)",
-            format_time(spacy_results['avg_latency']),
-            help="Average time per sample for spaCy"
-        )
+    models = ['Regex', 'spaCy', 'DSPy']
+    latencies = [
+        regex_results['avg_latency'] * 1000, # convert to ms
+        spacy_results['avg_latency'] * 1000,
+        dspy_results['avg_latency'] * 1000
+    ]
     
-    with col6:
-        st.metric(
-            "Latency (DSPy)",
-            format_time(dspy_results['avg_latency']),
-            help="Average time per sample for DSPy"
-        )
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=models,
+        y=latencies,
+        text=[f"{l:.2f} ms" for l in latencies],
+        textposition='auto',
+        marker_color=['#FF6B6B', '#95E1D3', '#4ECDC4']
+    ))
+    
+    fig.update_layout(
+        yaxis_type="log",
+        yaxis_title="Latency (ms) - Log Scale",
+        height=300,
+        margin=dict(l=20, r=20, t=10, b=10)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
