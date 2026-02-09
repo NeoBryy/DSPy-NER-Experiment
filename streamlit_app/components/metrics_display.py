@@ -45,8 +45,9 @@ def render(regex_results, spacy_results, dspy_results, extractor_name, use_impli
     else:
         _render_standard_entity_chart(regex_results, spacy_results, dspy_results)
     
-    # Detailed metrics tables
-    _render_detailed_metrics(regex_results, spacy_results, dspy_results, use_implicit)
+    # Detailed metrics tables (only for standard mode)
+    if not use_implicit:
+        _render_detailed_metrics(regex_results, spacy_results, dspy_results, use_implicit)
     
     # Cost & Latency KPIs
     _render_cost_latency(regex_results, spacy_results, dspy_results)
@@ -148,8 +149,7 @@ def _render_standard_metrics(regex_results, spacy_results, dspy_results):
 
 def _render_implicit_entity_chart(regex_results, spacy_results, dspy_results, extractor_name):
     """Render implicit F1 by entity type chart."""
-    st.subheader("Implicit F1 by Entity Type 🔍")
-    st.caption("This shows how well each model extracts implicit references by entity type")
+    st.subheader("Implicit F1 by Entity Type (DSPy Model)🔍")
     
     entity_types = ['PER', 'ORG', 'LOC', 'MISC']
     regex_implicit_f1s = [regex_results['metrics'].get(f'implicit_{et}_f1', 0) for et in entity_types]
@@ -157,18 +157,7 @@ def _render_implicit_entity_chart(regex_results, spacy_results, dspy_results, ex
     dspy_implicit_f1s = [dspy_results['metrics'].get(f'implicit_{et}_f1', 0) for et in entity_types]
     
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        name='Regex',
-        x=entity_types,
-        y=regex_implicit_f1s,
-        marker_color='#FF6B6B'
-    ))
-    fig.add_trace(go.Bar(
-        name='spaCy',
-        x=entity_types,
-        y=spacy_implicit_f1s,
-        marker_color='#95E1D3'
-    ))
+    # Only show DSPy for implicit mode since baselines are always 0
     fig.add_trace(go.Bar(
         name=extractor_name,
         x=entity_types,
@@ -176,7 +165,7 @@ def _render_implicit_entity_chart(regex_results, spacy_results, dspy_results, ex
         marker_color='#4ECDC4'
     ))
     fig.update_layout(
-        barmode='group',
+        title=f"{extractor_name} Performance by Entity Type",
         yaxis_title='Implicit F1 Score',
         xaxis_title='Entity Type',
         yaxis_range=[0, 1],
@@ -186,8 +175,8 @@ def _render_implicit_entity_chart(regex_results, spacy_results, dspy_results, ex
     
     # Add insight box
     st.info(f"""
-    💡 **Key Insight**: {extractor_name} achieves {dspy_results['metrics']['overall_implicit_f1']:.1%} implicit F1 
-    while Regex and spaCy score 0% - they cannot extract implicit references without explicit mentions!
+    💡 **Key Insight**: {extractor_name} achieves {dspy_results['metrics']['overall_implicit_f1']:.1%} implicit F1!
+    Standard models (Regex, spaCy) score 0% because they cannot resolve references without explicit names.
     """)
 
 

@@ -108,7 +108,7 @@ with st.expander("🔍 Approaches Compared", expanded=False):
     - ❌ "He" → Tagged as pronoun, not linked to "Tim Cook"
     - ⚠️ May or may not catch "engineering team"
     
-    **Pros**: Good accuracy, fast inference, works offline , more versatile than regex 
+    **Pros**: Good accuracy, fast inference, works offline, more versatile than regex  
     **Cons**: Limited by training data, **cannot resolve "He" → "Tim Cook"**
     
     ---

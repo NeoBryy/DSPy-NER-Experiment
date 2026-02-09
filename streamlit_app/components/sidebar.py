@@ -37,7 +37,7 @@ def render_sidebar():
     ner_mode = st.sidebar.radio(
         "Select extraction mode",
         options=["Standard (Explicit Entities)", "Implicit Resolution"],
-        help="Standard: Extract explicitly mentioned entities\\nImplicit: Extract pronouns and references like 'He', 'The city'"
+        help="Standard: Extract explicitly mentioned entities\nImplicit: Extract pronouns and references like 'He', 'The city'"
     )
     
     # Show implicit options if implicit mode selected
