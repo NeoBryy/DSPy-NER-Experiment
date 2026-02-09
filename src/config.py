@@ -19,8 +19,11 @@ MODELS = {
 
 def get_lm(model_name='gpt-4o-mini'):
     config = MODELS[model_name]
-    return dspy.LM(
+    lm = dspy.LM(
         model=f"openai/{config['model']}",
         api_key=os.getenv('OPENAI_API_KEY'),
         temperature=0.0
     )
+    # Disable DSPy's internal cache to get actual OpenAI usage data (including cached_tokens)
+    lm.cache = False
+    return lm

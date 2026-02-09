@@ -1,14 +1,23 @@
 # DSPy Named Entity Recognition Demo
 
-A 3-way comparison of NER approaches: **Regex** (rule-based) vs **spaCy** (traditional ML) vs **DSPy** (LLM-powered).
+A comprehensive comparison of NER approaches from rule-based to LLM-powered extraction, with **breakthrough research on implicit entity resolution**.
 
 ## 🎯 What This Demonstrates
 
-This project showcases the evolution of Named Entity Recognition from simple pattern matching to modern LLM-powered extraction:
+This project showcases two major capabilities:
 
-1. **Regex**: Hand-crafted rules and patterns
-2. **spaCy**: Pre-trained statistical ML model  
-3. **DSPy**: Large language model with contextual understanding
+### 1. **Standard NER Comparison**
+Evolution from simple pattern matching to modern LLM-powered extraction on explicitly mentioned entities:
+- **Regex**: Hand-crafted rules and patterns
+- **spaCy**: Pre-trained statistical ML model  
+- **DSPy**: Large language model with contextual understanding
+
+### 2. **Implicit Entity Resolution**
+Extracting entities that are **not explicitly mentioned** (pronouns, generic references):
+- Example: "*Microsoft opened in Seattle. **The city** provided incentives.*"
+- Standard NER: Extracts "Microsoft", "Seattle" ✅
+- **Implicit NER**: Also extracts "**The city**" as a location entity ✅
+- **Achievement**: 0% → **87.5% F1** using Chain-of-Thought + Few-Shot prompting
 
 ## 🔧 How Each Approach Works
 
@@ -20,7 +29,7 @@ Uses hand-crafted pattern matching rules:
 - **Miscellaneous**: Pattern matches for products, events, and awards
 
 **Pros**: Fast, free, deterministic  
-**Cons**: Brittle, requires manual pattern engineering, poor with edge cases
+**Cons**: Brittle, requires manual pattern engineering, poor with edge cases, unable to perform implicit entity resolution
 
 ### 2️⃣ spaCy (Traditional ML)
 Uses a pre-trained statistical model (`en_core_web_sm`):
@@ -30,7 +39,7 @@ Uses a pre-trained statistical model (`en_core_web_sm`):
 - **Entity Mapping**: Maps spaCy's labels (PERSON, GPE, ORG) to our schema
 
 **Pros**: Good accuracy, fast inference, works offline  
-**Cons**: Fixed to training data, struggles with domain-specific entities
+**Cons**: Fixed to training data, struggles with domain-specific entities, unable to perform implicit entity resolution
 
 ### 3️⃣ DSPy (LLM-Powered)
 Uses large language models with structured prompting:
@@ -123,24 +132,90 @@ Then open http://localhost:8501 in your browser.
 
 ```
 dspy-llm/
+├── streamlit_app/                       # Refactored modular Streamlit app
+│   ├── components/                      # UI components
+│   │   ├── sidebar.py                   # Configuration sidebar with cost calc
+│   │   ├── metrics_display.py           # F1 scores, charts, tables
+│   │   ├── sample_viewer.py             # Sample predictions with highlighting
+│   │   └── dspy_internals.py            # LLM prompt/response inspection
+│   └── utils/                           # Business logic utilities
+│       ├── data_loader.py               # Dataset loading
+│       └── experiment_runner.py         # Experiment execution
 ├── src/
 │   ├── modules/
-│   │   └── entity_extractor.py    # DSPy NER module
+│   │   ├── entity_extractor.py          # Standard DSPy NER
+│   │   └── entity_extractor_implicit.py # Implicit NER with CoT/Few-Shot
 │   ├── baselines/
-│   │   ├── regex_ner.py            # Regex baseline
-│   │   └── spacy_ner.py            # spaCy baseline
-│   └── config.py                   # Model configurations
+│   │   ├── regex_ner.py                 # Regex baseline
+│   │   └── spacy_ner.py                 # spaCy baseline
+│   ├── data/
+│   │   ├── ner_samples.json             # Standard NER dataset
+│   │   └── ner_multi_sentence_samples.json # Implicit NER dataset
+│   └── config.py                        # Model configurations
 ├── evaluation/
-│   └── metrics.py                  # P/R/F1 calculations
+│   ├── metrics.py                       # Standard P/R/F1 calculations
+│   └── multi_sentence_metrics.py        # Implicit resolution metrics
 ├── experiments/
-│   └── run_baseline_comparison.py  # CLI experiment runner
+│   ├── run_baseline_comparison.py       # Standard NER comparison
+│   ├── run_multi_sentence_comparison.py # Implicit NER comparison
+│   └── run_dspy_variants_comparison.py  # CoT/Few-Shot comparison
 ├── scripts/
-│   └── generate_ner_data.py        # Dataset generator (will create ner_samples.json in src/data folder)
-├── app.py                          # Streamlit dashboard
-└── outputs/                        # Experiment results (json files if you wanted to create your own visuals)
+│   ├── generate_ner_data.py             # Standard dataset generator
+│   └── generate_multi_sentence_ner_data.py # Implicit dataset generator
+├── app.py                               # Streamlit dashboard (refactored)
+└── outputs/                             # Experiment results
 ```
 
+### Architecture Benefits
+
+**Modular Design**: Each component has a single responsibility
+**Maintainability**: ~150 line orchestrator vs 810 line monolith
+**Testability**: Components can be tested independently
+**Reusability**: UI components can be reused in other dashboards
+
+### Concurrent API Execution
+
+DSPy experiments use **concurrent API calls** for ~5x speedup:
+
+**Implementation**:
+- **Async/await** with `asyncio` for non-blocking requests
+- **Semaphore-based rate limiting** (max 10 concurrent requests)
+- **Exponential backoff** retry logic via `tenacity` library
+- **Safe concurrency**: Calculated as `(RPM × avg_duration) / 60`
+
+**Performance**:
+- Sequential: 20 samples × 2s = 40s
+- Concurrent: 20 samples / 5 workers = 8s (**5x faster**)
+
+**Robustness**:
+- Auto-retry on rate limit (429) and server errors (5xx)
+- Fail-fast on auth errors (401, 403)
+- Maintains LLM history capture for debugging
+
+### Prompt Caching (OpenAI)
+
+OpenAI's prompt caching reduces costs by **~50% on cached tokens** when:
+
+**Requirements**:
+- Cacheable prefix (system message + few-shot examples) **≥1024 tokens**
+- Identical prefix across requests within 5-10 minute window
+- Currently only `gpt-4o-mini` and `gpt-4o` models support caching
+
+**Implementation**:
+- Disabled DSPy's internal cache (`lm.cache = False`) to capture OpenAI usage data
+- Using 6 few-shot examples in `NERExtractorCoTFewShot` to exceed 1024 token threshold
+- Achieves ~77% cache hit rate on batch processing
+
+**Cost Savings Example** (100 samples):
+- Without caching: ~3,500 prompt tokens × $0.15/1M = $0.000525
+- With caching (77% hit): ~800 uncached + 2,700 cached × $0.075/1M = $0.000322
+- **Savings**: 38.5% on input tokens
+
+*Note: The dashboard shows cache hit rate next to DSPy cost when available.*
+
 ## 🔬 Expected Results
+
+### Standard NER (Explicit Entities)
 
 With `gpt-4o-mini` on 100 samples:
 
@@ -151,6 +226,22 @@ With `gpt-4o-mini` on 100 samples:
 | Latency | ~0.035ms | ~15ms | ~1.6s |
 
 **Key Insight**: Clear progression from rule-based → ML → LLM approaches, with DSPy achieving the highest accuracy through contextual understanding.
+
+### Implicit NER Results
+
+**Testing implicit entity resolution** (can models extract "He", "The city", "The company"?):
+
+| Approach | Implicit F1 | Improvement | Cost (50 samples) |
+|----------|-------------|-------------|-------------------|
+| Regex | 0.0% | - | $0.00 |
+| spaCy | 0.0% | - | $0.00 |
+| **DSPy Baseline** | 0.0% | - | $0.0005 |
+| **+ Implicit Prompting** | **53.7%** | +53.7pp | $0.0006 |
+| **+ Chain-of-Thought** | **79.1%** | +79.1pp | $0.0006 |
+| **+ Few-Shot** | **82.6%** | +82.6pp | $0.0006 |
+| **+ CoT + Few-Shot** | **87.5%** 🎉 | +87.5pp | $0.0006 |
+
+**Breakthrough Finding**: Proper prompting enables LLMs to extract implicit entity references that traditional NER models completely miss. The combination of Chain-of-Thought reasoning and Few-Shot examples achieves 87.5% F1 on a task where all other approaches score 0%.
 
 ## 💡 Why This Matters
 

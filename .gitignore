@@ -6,6 +6,7 @@ __pycache__/
 # Outputs
 outputs/
 *.pyc
+data/
 
 # Generated data (users must generate their own)
 src/data/ner_samples.json
@@ -23,3 +24,4 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+archive/
