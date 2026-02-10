@@ -186,10 +186,13 @@ dspy-llm/
 │   │   ├── sidebar.py                   # Configuration sidebar with cost calc
 │   │   ├── metrics_display.py           # F1 scores, charts, tables
 │   │   ├── sample_viewer.py             # Sample predictions with highlighting
-│   │   └── dspy_internals.py            # LLM prompt/response inspection
+│   │   ├── dspy_internals.py            # LLM prompt/response inspection
+│   │   └── __init__.py                  # Component exports
 │   └── utils/                           # Business logic utilities
 │       ├── data_loader.py               # Dataset loading
-│       └── experiment_runner.py         # Experiment execution
+│       ├── async_experiment_runner.py   # Streamlit async experiment execution
+│       ├── experiment_runner.py         # Synchronous experiment runner (legacy)
+│       └── __init__.py                  # Utility exports
 ├── src/
 │   ├── modules/
 │   │   ├── entity_extractor.py          # Standard DSPy NER
@@ -197,7 +200,12 @@ dspy-llm/
 │   ├── baselines/
 │   │   ├── regex_ner.py                 # Regex baseline
 │   │   └── spacy_ner.py                 # spaCy baseline
-│   └── config.py                        # Model configurations
+│   ├── utils/
+│   │   └── async_runner.py              # Shared async runner for experiments
+│   ├── data/
+│   │   ├── ner_samples.json             # Standard NER dataset (generated)
+│   │   └── ner_multi_sentence_samples.json # Implicit NER dataset (generated)
+│   └── config.py                        # Model configurations and pricing
 ├── evaluation/
 │   ├── metrics.py                       # Standard P/R/F1 calculations
 │   └── multi_sentence_metrics.py        # Implicit resolution metrics
@@ -205,12 +213,14 @@ dspy-llm/
 │   ├── run_baseline_comparison.py       # Standard NER comparison
 │   ├── run_multi_sentence_comparison.py # Implicit NER comparison
 │   ├── run_dspy_variants_comparison.py  # CoT/Few-Shot comparison
+│   ├── run_optimization.py              # DSPy auto-optimization test
 │   └── test_prompt_caching.py           # Prompt caching verification
 ├── scripts/
 │   ├── generate_ner_data.py             # Standard dataset generator
 │   └── generate_multi_sentence_ner_data.py # Implicit dataset generator
-├── app.py                               # Streamlit dashboard (refactored)
-└── outputs/                             # Experiment results
+├── app.py                               # Streamlit dashboard entry point
+├── requirements.txt                     # Python dependencies
+└── outputs/                             # Experiment results (gitignored)
 ```
 
 ### Concurrent API Execution

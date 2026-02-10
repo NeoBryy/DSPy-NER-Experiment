@@ -32,150 +32,14 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def calculate_safe_concurrency(rpm_limit=500, avg_request_duration=2.0):
-    """
-    Calculate safe concurrency based on OpenAI rate limits.
-    
-    Formula: safe_concurrency = (RPM_limit × avg_request_duration_seconds) / 60
-    
-    Args:
-        rpm_limit: Requests per minute limit (default 500 for tier 2)
-        avg_request_duration: Average request duration in seconds (default 2s)
-    
-    Returns:
-        int: Safe number of concurrent requests (capped at 10)
-    """
-    calculated = int((rpm_limit * avg_request_duration) / 60)
-    # Cap at 10 based on production observations (degraded performance above 8-10)
-    return min(calculated, 10)
-
-
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((Exception,)),  # Retry on rate limits and server errors
-    before_sleep=before_sleep_log(logger, logging.WARNING),
-    reraise=True
+from src.utils.async_runner import (
+    calculate_safe_concurrency,
+    process_samples_concurrently
 )
-async def call_dspy_with_retry(extractor_instance, lm, text):
-    """
-    Call DSPy extractor with automatic retry on failures.
-    
-    Uses exponential backoff: 1s, 2s, 4s, 8s, 10s (max)
-    Retries up to 5 times on rate limit (429) or server errors (5xx)
-    
-    Args:
-        extractor_instance: DSPy extractor module
-        lm: Language model instance
-        text: Input text to process
-    
-    Returns:
-        tuple: (prediction, captured_history)
-    """
-   # Run in thread to avoid blocking event loop
-    loop = asyncio.get_event_loop()
-    
-    def _sync_call():
-        # CRITICAL: Clear LM history before each call to prevent contamination
-        # across concurrent requests. Without this, concurrent calls share history
-        # and LLM outputs include entities from other samples!
-        if hasattr(lm, 'history'):
-            lm.history = []
-        
-        with dspy.context(lm=lm):
-            result = extractor_instance(text)
-        
-        # CRITICAL: Capture history IMMEDIATELY after call, while still in this thread
-        # If we capture outside the thread, other concurrent tasks may have already
-        # polluted lm.history with their data, causing wrong prompts to display
-        captured_history = None
-        token_usage = None
-        
-        if hasattr(lm, 'history') and lm.history:
-            last_interaction = lm.history[-1].copy() if lm.history else {}
-            captured_history = {
-                'messages': last_interaction.get('messages', []),
-                'response': last_interaction.get('response', None),
-                'outputs': last_interaction.get('outputs', [])
-            }
-            
-            # Extract token usage including cached tokens for prompt caching analysis
-            response_obj = last_interaction.get('response', None)
-            if response_obj and hasattr(response_obj, 'usage'):
-                usage = response_obj.usage
-                token_usage = {
-                    'prompt_tokens': usage.prompt_tokens if hasattr(usage, 'prompt_tokens') else 0,
-                    'completion_tokens': usage.completion_tokens if hasattr(usage, 'completion_tokens') else 0,
-                    'total_tokens': usage.total_tokens if hasattr(usage, 'total_tokens') else 0,
-                    'cached_tokens': 0  # Default to 0
-                }
-                
-                # Check for cached tokens in prompt_tokens_details
-                if hasattr(usage, 'prompt_tokens_details'):
-                    details = usage.prompt_tokens_details
-                    if hasattr(details, 'cached_tokens'):
-                        token_usage['cached_tokens'] = details.cached_tokens
-        
-        return result, captured_history, token_usage
-    
-    result, captured_history, token_usage = await loop.run_in_executor(None, _sync_call)
-    return result, captured_history, token_usage
 
-
-async def run_single_sample_async(
-    semaphore, extractor_instance, lm, sample, idx, progress_callback=None
-):
-    """
-    Process a single NER sample with concurrency control.
-    
-    Args:
-        semaphore: asyncio.Semaphore to limit concurrent requests
-        extractor_instance: DSPy extractor module
-        lm: Language model instance
-        sample: Test sample dict with 'text' field
-        idx: Sample index
-        progress_callback: Optional callback(idx) called on completion
-    
-    Returns:
-        tuple: (idx, prediction, latency, history, token_usage)
-    """
-    async with semaphore:  # Acquire semaphore slot
-        try:
-            start_time = time.time()
-            
-            # Call with retry logic - now returns prediction, history, and token usage
-            pred, captured_history, token_usage = await call_dspy_with_retry(extractor_instance, lm, sample['text'])
-            
-            latency = time.time() - start_time
-            
-            # Build history dict with captured data
-            history = {
-                'text': sample['text'],
-                'prediction': pred,
-                'messages': [],
-                'response': None,
-                'outputs': []
-            }
-            
-            if captured_history:
-                history['messages'] = captured_history.get('messages', [])
-                history['response'] = captured_history.get('response', None)
-                history['outputs'] = captured_history.get('outputs', [])
-            
-            # Call progress callback if provided
-            if progress_callback:
-                progress_callback(idx)
-            
-            return idx, pred, latency, history, token_usage
-            
-        except Exception as e:
-            logger.error(f"Failed to process sample {idx} after retries: {e}")
-            # Return empty result on failure
-            return idx, {'PER': [], 'ORG': [], 'LOC': [], 'MISC': []}, 0.0, {
-                'text': sample['text'],
-                'prediction': {},
-                'error': str(e)
-            }, None  # No token usage on failure
+async def run_single_sample_async(*args, **kwargs):
+    """Deprecated: Logic moved to src.utils.async_runner"""
+    pass
 
 
 async def run_dspy_model_async(
@@ -226,9 +90,6 @@ async def run_dspy_model_async(
             extractor_instance = NERExtractor()
             extractor_name = f"DSPy ({model_name})"
         
-        # Create semaphore for rate limiting
-        semaphore = asyncio.Semaphore(max_concurrent)
-        
         # Progress tracking
         progress_bar = st.progress(0)
         progress_text = st.empty()
@@ -240,25 +101,14 @@ async def run_dspy_model_async(
             progress_text.text(f"Processing sample {completed}/{len(test_samples)}...")
             progress_bar.progress(completed / len(test_samples))
         
-        # Create tasks for all samples
-        tasks = [
-            run_single_sample_async(
-                semaphore, extractor_instance, lm, sample, i, update_progress
-            )
-            for i, sample in enumerate(test_samples)
-        ]
-        
-        # Run all tasks concurrently
-        results = await asyncio.gather(*tasks, return_exceptions=False)
-        
-        # Sort results by index to maintain order
-        results = sorted(results, key=lambda x: x[0])
-        
-        # Extract components
-        predictions = [r[1] for r in results]
-        latencies = [r[2] for r in results]
-        histories = [r[3] for r in results]
-        token_usages = [r[4] for r in results]  # Extract token usage
+        # Run concurrently using shared utility
+        predictions, latencies, histories, token_usages = await process_samples_concurrently(
+            test_samples,
+            extractor_instance,
+            lm,
+            max_concurrent=max_concurrent,
+            progress_callback=update_progress
+        )
         
         # Calculate prompt caching statistics
         total_prompt_tokens = sum(t['prompt_tokens'] for t in token_usages if t)

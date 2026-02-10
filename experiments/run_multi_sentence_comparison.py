@@ -29,11 +29,36 @@ def load_test_data():
         return json.load(f)
 
 
+def make_json_serializable(obj):
+    """Convert DSPy objects to JSON-serializable format."""
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    if hasattr(obj, 'model_dump'):
+        # DSPy response objects have model_dump method
+        return make_json_serializable(obj.model_dump())
+    if hasattr(obj, '__dict__'):
+        return make_json_serializable(obj.__dict__)
+    # For other types, convert to string
+    return str(obj)
+
+
+import asyncio
+from src.utils.async_runner import process_samples_concurrently, calculate_safe_concurrency
+
 def run_experiment(model_name='gpt-4o-mini', num_samples=200):
     """
     Run multi-sentence NER experiment.
     Reports explicit (sentence 1) and implicit (sentence 2) performance separately.
     """
+    asyncio.run(_run_experiment_async(model_name, num_samples))
+
+async def _run_experiment_async(model_name, num_samples):
     print("="*80)
     print(f"Multi-Sentence NER Experiment: Regex vs spaCy vs DSPy ({model_name})")
     print("="*80)
@@ -109,29 +134,34 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=200):
     print(f"   Implicit F1: {spacy_results['metrics']['overall_implicit_f1']:.3f}")
     
     # Run DSPy
-    print(f"\n4. Running DSPy with {model_name}...")
+    print(f"\n4. Running DSPy with {model_name} (Concurrent)...")
     lm = get_lm(model_name)
     
-    dspy_predictions = []
-    dspy_latencies = []
+    # Calculate safe concurrency
+    max_concurrent = calculate_safe_concurrency(rpm_limit=500, avg_request_duration=2.0)
+    print(f"   Using {max_concurrent} concurrent workers")
     
-    for i, sample in enumerate(test_data):
-        with dspy.context(lm=lm):
-            # Use the advanced implicit extractor to test implicit resolution
-            extractor = NERExtractorCoTFewShot()
-            start_time = time.time()
-            pred = extractor(sample['text'])
-            dspy_latencies.append(time.time() - start_time)
-            dspy_predictions.append(pred)
-        
-        print(f"\r   Processed {i + 1}/{len(test_data)} samples...", end='', flush=True)
+    # Use the advanced implicit extractor to test implicit resolution
+    extractor = NERExtractorCoTFewShot()
+    
+    # Progress callback
+    def print_progress(idx):
+        print(f"\r   Processed {idx + 1}/{len(test_data)} samples...", end='', flush=True)
+
+    predictions, latencies, histories, token_usages = await process_samples_concurrently(
+        test_data,
+        extractor,
+        lm,
+        max_concurrent=max_concurrent,
+        progress_callback=print_progress
+    )
     print()
     
     dspy_results = evaluator.evaluate_model(
         f'DSPy ({model_name})',
-        dspy_predictions,
+        predictions,
         MODELS[model_name],
-        dspy_latencies
+        latencies
     )
     
     print(f"   Explicit F1: {dspy_results['metrics']['overall_explicit_f1']:.3f}")
@@ -158,7 +188,9 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=200):
         'test_samples': test_data,
         'regex_predictions': regex_predictions,
         'spacy_predictions': spacy_predictions,
-        'dspy_predictions': dspy_predictions
+        'dspy_predictions': predictions,
+        'dspy_histories': make_json_serializable(histories),
+        'dspy_token_usages': token_usages
     }
     
     with open(output_path, 'w', encoding='utf-8') as f:
@@ -212,6 +244,7 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=200):
     print("="*80)
     
     return results
+
 
 
 if __name__ == '__main__':

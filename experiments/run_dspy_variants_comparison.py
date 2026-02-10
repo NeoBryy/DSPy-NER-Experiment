@@ -40,7 +40,32 @@ def load_test_data():
         return json.load(f)
 
 
+def make_json_serializable(obj):
+    """Convert DSPy objects to JSON-serializable format."""
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    if hasattr(obj, 'model_dump'):
+        # DSPy response objects have model_dump method
+        return make_json_serializable(obj.model_dump())
+    if hasattr(obj, '__dict__'):
+        return make_json_serializable(obj.__dict__)
+    # For other types, convert to string
+    return str(obj)
+
+
+import asyncio
+from src.utils.async_runner import process_samples_concurrently, calculate_safe_concurrency
+
 def run_experiment(model_name='gpt-4o-mini', num_samples=100):
+    asyncio.run(_run_experiment_async(model_name, num_samples))
+
+async def _run_experiment_async(model_name, num_samples):
     """
     Compare all DSPy variants for implicit NER.
     """
@@ -74,22 +99,25 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=100):
         ('+ CoT + Few-Shot', NERExtractorCoTFewShot()),
     ]
     
+    max_concurrent = calculate_safe_concurrency(rpm_limit=500, avg_request_duration=2.0)
+    print(f"Using {max_concurrent} concurrent workers")
+
     for variant_name, extractor in variants:
         print(f"\n{'='*80}")
         print(f"Running: {variant_name}")
         print('='*80)
         
-        predictions = []
-        latencies = []
-        
-        for i, sample in enumerate(test_data):
-            with dspy.context(lm=lm):
-                start_time = time.time()
-                pred = extractor(sample['text'])
-                latencies.append(time.time() - start_time)
-                predictions.append(pred)
-            
-            print(f"\r   Processed {i + 1}/{len(test_data)} samples...", end='', flush=True)
+        # Progress callback
+        def print_progress(idx):
+             print(f"\r   Processed {idx + 1}/{len(test_data)} samples...", end='', flush=True)
+
+        predictions, latencies, _, _ = await process_samples_concurrently(
+            test_data,
+            extractor,
+            lm,
+            max_concurrent=max_concurrent,
+            progress_callback=print_progress
+        )
         print()
         
         results = evaluator.evaluate_model(

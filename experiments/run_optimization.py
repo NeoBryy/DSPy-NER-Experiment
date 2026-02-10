@@ -133,21 +133,39 @@ def validate_ner(example, pred, trace=None):
     return f1
 
 
+def make_json_serializable(obj):
+    """Convert DSPy objects to JSON-serializable format."""
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    if hasattr(obj, 'model_dump'):
+        # DSPy response objects have model_dump method
+        return make_json_serializable(obj.model_dump())
+    if hasattr(obj, '__dict__'):
+        return make_json_serializable(obj.__dict__)
+    # For other types, convert to string
+    return str(obj)
+
+
+import asyncio
+from src.utils.async_runner import process_samples_concurrently, calculate_safe_concurrency
+
 def run_optimization(model_name='gpt-4o-mini'):
+    asyncio.run(_run_optimization_async(model_name))
+
+async def _run_optimization_async(model_name):
     print(f"Starting DSPy Prompt Optimization with {model_name}...")
     
     # 1. Load Data
     train_dicts, dev_dicts, test_dicts = load_and_split_data()
     
     # Convert to dspy.Examples which match the ImplicitNERSignature
-    # The JSON data has 'sentence1_entities' etc, but our signature expects 'people', 'organizations'...
-    # We must transform the data to match the Signature Input/Output for training!
-    
     def transform_to_example(d):
-        # We need to flatten the "gold" entities into comma-separated strings for 'people', 'organizations' etc.
-        # to match the dspy.OutputField expectations of ImplicitNERSignature.
-        
-        # Combine explicit and implicit for the "gold" string
         per = d['sentence1_entities'].get('PER', []) + [r['text'] for r in d['implicit_refs'] if r['type'] == 'PER']
         org = d['sentence1_entities'].get('ORG', []) + [r['text'] for r in d['implicit_refs'] if r['type'] == 'ORG']
         loc = d['sentence1_entities'].get('LOC', []) + [r['text'] for r in d['implicit_refs'] if r['type'] == 'LOC']
@@ -162,8 +180,6 @@ def run_optimization(model_name='gpt-4o-mini'):
         ).with_inputs('text')
 
     trainset = [transform_to_example(d) for d in train_dicts]
-    # We don't necessarily need devset for BootstrapFewShot (it uses trainset to bootstrap), 
-    # but good to have if we switched to MIPRO.
     
     # 2. Setup DSPy
     lm = get_lm(model_name)
@@ -173,8 +189,6 @@ def run_optimization(model_name='gpt-4o-mini'):
     print("\nCompiling (Optimizing) Model...")
     
     teleprompter = BootstrapFewShot(metric=validate_ner, max_bootstrapped_demos=4, max_labeled_demos=4)
-    
-    # Use trainable module
     uncompiled_model = TrainableNER()
     
     start_time = time.time()
@@ -195,44 +209,50 @@ def run_optimization(model_name='gpt-4o-mini'):
     ]
     
     all_results = {}
+    max_concurrent = calculate_safe_concurrency(rpm_limit=500, avg_request_duration=2.0)
+    print(f"\nUsing {max_concurrent} concurrent workers for evaluation...")
     
     for name, module in approaches:
         print(f"\nEvaluating {name}...")
-        predictions = []
-        latencies = []
         
-        for i, sample in enumerate(test_dicts):
-            t0 = time.time()
-            text = sample['text']
-            
+        # Progress callback
+        def print_progress(idx):
+             print(f"\r   Processed {idx + 1}/{len(test_dicts)} samples...", end='', flush=True)
+
+        # Use concurrent runner
+        raw_predictions, latencies, _, _ = await process_samples_concurrently(
+            test_dicts,
+            module,
+            lm,
+            max_concurrent=max_concurrent,
+            progress_callback=print_progress
+        )
+        print()
+        
+        # Post-process predictions
+        # process_samples_concurrently returns whatever the module output
+        # For Manual Few-Shot it returns dict, for others it returns dspy.Prediction
+        
+        final_predictions = []
+        for i, res in enumerate(raw_predictions):
             try:
-                # Prediction
                 if name == "Manual Few-Shot":
-                    # Returns dict directly
-                    pred_dict = module(text)
+                    # Already a dict
+                    pred_dict = res
                 else:
-                    # Returns dspy.Prediction (from TrainableNER)
-                    res = module(text)
-                    # Convert to dict for evaluator
+                    # dspy.Prediction -> dict
                     pred_dict = {
                         'PER': [e.strip() for e in res.people.split(',') if e.strip()] if hasattr(res, 'people') else [],
                         'ORG': [e.strip() for e in res.organizations.split(',') if e.strip()] if hasattr(res, 'organizations') else [],
                         'LOC': [e.strip() for e in res.locations.split(',') if e.strip()] if hasattr(res, 'locations') else [],
                         'MISC': [e.strip() for e in res.misc.split(',') if e.strip()] if hasattr(res, 'misc') else []
                     }
-            
+                final_predictions.append(pred_dict)
             except Exception as e:
-                print(f"Error predicting sample {i}: {e}")
-                pred_dict = {}
-                
-            latencies.append(time.time() - t0)
-            predictions.append(pred_dict)
-            
-            if (i+1) % 10 == 0:
-                print(f"\r   Processed {i+1}/{len(test_dicts)} samples...", end="", flush=True)
-        print()
-            
-        results = evaluator.evaluate_model(name, predictions, MODELS[model_name], latencies)
+                print(f"Error processing result {i}: {e}")
+                final_predictions.append({})
+
+        results = evaluator.evaluate_model(name, final_predictions, MODELS[model_name], latencies)
         all_results[name] = results
         
         print(f"   Implicit F1: {results['metrics']['overall_implicit_f1']:.1%}")
@@ -241,7 +261,7 @@ def run_optimization(model_name='gpt-4o-mini'):
     # 5. Save Results
     output_path = Path(__file__).parent.parent / 'outputs' / f'optimization_results_{int(time.time())}.json'
     with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(all_results, f, indent=2, ensure_ascii=False)
+        json.dump(make_json_serializable(all_results), f, indent=2, ensure_ascii=False)
     print(f"\nResults saved to {output_path}")
 
 if __name__ == "__main__":

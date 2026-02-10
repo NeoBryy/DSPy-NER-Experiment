@@ -27,6 +27,29 @@ def load_test_data():
         return json.load(f)
 
 
+def make_json_serializable(obj):
+    """Convert DSPy objects to JSON-serializable format."""
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    if hasattr(obj, 'model_dump'):
+        # DSPy response objects have model_dump method
+        return make_json_serializable(obj.model_dump())
+    if hasattr(obj, '__dict__'):
+        return make_json_serializable(obj.__dict__)
+    # For other types, convert to string
+    return str(obj)
+
+
+import asyncio
+from src.utils.async_runner import process_samples_concurrently, calculate_safe_concurrency
+
+
 def run_experiment(model_name='gpt-4o-mini', num_samples=100):
     """
     Run NER experiment comparing Regex vs spaCy vs DSPy.
@@ -35,6 +58,10 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=100):
         model_name: LLM model to use for DSPy
         num_samples: Number of samples to evaluate
     """
+    # Wrap async execution
+    asyncio.run(_run_experiment_async(model_name, num_samples))
+
+async def _run_experiment_async(model_name, num_samples):
     print("="*80)
     print(f"NER Extraction Experiment: Regex vs spaCy vs DSPy ({model_name})")
     print("="*80)
@@ -107,29 +134,39 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=100):
     print(f"   Avg Latency: {spacy_results['avg_latency']*1000:.2f}ms")
     
     # Run DSPy
-    print(f"\n4. Running DSPy with {model_name}...")
+    print(f"\n4. Running DSPy with {model_name} (Concurrent)...")
     lm = get_lm(model_name)
     
-    dspy_predictions = []
-    dspy_latencies = []
+    # Calculate safe concurrency
+    max_concurrent = calculate_safe_concurrency(rpm_limit=500, avg_request_duration=2.0)
+    print(f"   Using {max_concurrent} concurrent workers")
     
-    for i, sample in enumerate(test_data):
-        with dspy.context(lm=lm):
-            extractor = NERExtractor()
-            start_time = time.time()
-            pred = extractor(sample['text'])
-            dspy_latencies.append(time.time() - start_time)
-            dspy_predictions.append(pred)
+    extractor = NERExtractor()
+    
+    # Progress callback
+    def print_progress(idx):
+        print(f"\r   Processed {idx + 1}/{len(test_data)} samples...", end='', flush=True)
         
-        # Show progress for every sample
-        print(f"\r   Processed {i + 1}/{len(test_data)} samples...", end='', flush=True)
+    predictions, latencies, histories, token_usages = await process_samples_concurrently(
+        test_data,
+        extractor,
+        lm,
+        max_concurrent=max_concurrent,
+        progress_callback=print_progress
+    )
     print()  # New line after progress
+    
+    # Calculate estimated cost using token usage if available, else fallback to average
+    # The evaluator uses average token counts if token_usages not provided, but here we have exact usage!
+    # However, ModelEvaluator.evaluate_model doesn't accept token_usages directly for cost calc yet,
+    # it uses the config. But we can update it or just let it estimate.
+    # For now, let's stick to the existing estimation in evaluate_model for consistency.
     
     dspy_results = evaluator.evaluate_model(
         f'DSPy ({model_name})',
-        dspy_predictions,
+        predictions,
         MODELS[model_name],
-        dspy_latencies
+        latencies
     )
     
     print(f"\n   DSPy Results:")
@@ -157,7 +194,9 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=100):
         'test_samples': test_data,
         'regex_predictions': regex_predictions,
         'spacy_predictions': spacy_predictions,
-        'dspy_predictions': dspy_predictions
+        'dspy_predictions': predictions,
+        'dspy_histories': make_json_serializable(histories),
+        'dspy_token_usages': token_usages
     }
     
     with open(output_path, 'w', encoding='utf-8') as f:
@@ -190,6 +229,7 @@ def run_experiment(model_name='gpt-4o-mini', num_samples=100):
     print("\n" + "="*80)
     
     return results
+
 
 
 if __name__ == '__main__':
