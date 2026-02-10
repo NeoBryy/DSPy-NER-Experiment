@@ -1,8 +1,24 @@
-dspy-ai>=2.4.0
-openai>=1.0.0
-python-dotenv>=1.0.0
-streamlit>=1.30.0
-plotly>=5.18.0
-datasets>=2.16.0
-spacy>=3.7.0
-pandas>=2.0.0
+# Core DSPy and LLM dependencies
+dspy-ai>=2.4.0          # DSPy framework for LLM programming
+openai>=1.0.0           # OpenAI API client (includes anyio, httpx, jiter as dependencies)
+python-dotenv>=1.0.0    # Environment variable management
+
+# Streamlit dashboard
+streamlit>=1.30.0       # Web dashboard framework
+plotly>=5.18.0          # Interactive visualizations
+
+# Async and retry logic
+tenacity>=8.0.0         # Retry logic with exponential backoff
+
+# Data processing
+datasets>=2.16.0        # HuggingFace datasets library
+pandas>=2.0.0           # Data manipulation
+
+# NER baselines
+spacy>=3.7.0            # spaCy NER baseline
+
+# Note: The following are transitive dependencies (auto-installed):
+# - anyio (via openai, dspy-ai)
+# - httpx (via openai)
+# - jiter (via openai)
+# - asyncio (Python built-in)

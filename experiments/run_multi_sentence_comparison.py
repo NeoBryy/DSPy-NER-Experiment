@@ -1,5 +1,6 @@
 """
-Run 3-way comparison: Regex vs spaCy vs DSPy for Named Entity Recognition.
+Run comparison of Regex vs spaCy vs DSPy on multi-sentence NER.
+Evaluates and reports explicit vs implicit performance separately.
 """
 
 import json
@@ -17,12 +18,13 @@ from src.config import get_lm, MODELS
 from src.modules.entity_extractor import NERExtractor
 from src.baselines.regex_ner import extract_entities_regex
 from src.baselines.spacy_ner import extract_entities_spacy
-from evaluation.metrics import ModelEvaluator
+from evaluation.multi_sentence_metrics import MultiSentenceNEREvaluator
+from src.modules.entity_extractor_implicit import NERExtractorCoTFewShot
 
 
 def load_test_data():
-    """Load NER test samples."""
-    data_path = Path(__file__).parent.parent / 'src' / 'data' / 'ner_samples.json'
+    """Load multi-sentence NER test samples."""
+    data_path = Path(__file__).parent.parent / 'src' / 'data' / 'ner_multi_sentence_samples.json'
     with open(data_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
@@ -49,40 +51,42 @@ def make_json_serializable(obj):
 import asyncio
 from src.utils.async_runner import process_samples_concurrently, calculate_safe_concurrency
 
-
-def run_experiment(model_name='gpt-4o-mini', num_samples=100):
+def run_experiment(model_name='gpt-4o-mini', num_samples=200):
     """
-    Run NER experiment comparing Regex vs spaCy vs DSPy.
-    
-    Args:
-        model_name: LLM model to use for DSPy
-        num_samples: Number of samples to evaluate
+    Run multi-sentence NER experiment.
+    Reports explicit (sentence 1) and implicit (sentence 2) performance separately.
     """
-    # Wrap async execution
     asyncio.run(_run_experiment_async(model_name, num_samples))
 
 async def _run_experiment_async(model_name, num_samples):
     print("="*80)
-    print(f"NER Extraction Experiment: Regex vs spaCy vs DSPy ({model_name})")
+    print(f"Multi-Sentence NER Experiment: Regex vs spaCy vs DSPy ({model_name})")
     print("="*80)
+    print("\nSentence 1: Explicit entity mentions")
+    print("Sentence 2: Implicit references (pronouns, 'the company', etc.)")
+    print("\nEvaluates:")
+    print("  - EXPLICIT: Extraction from sentence 1")
+    print("  - IMPLICIT: Resolution of references in sentence 2")
     
-    # Load test data
-    print("\n1. Loading test data...")
+    # Load data
+    print(f"\n1. Loading test data...")
     test_data = load_test_data()[:num_samples]
     print(f"   Loaded {len(test_data)} samples")
     
-    # Count entities
-    total_entities = sum(len(entities) for sample in test_data for entities in sample['entities'].values())
-    print(f"   Total entities: {total_entities}")
-    for entity_type in ['PER', 'ORG', 'LOC', 'MISC']:
-        count = sum(len(sample['entities'][entity_type]) for sample in test_data)
-        print(f"   {entity_type}: {count}")
+    # Statistics
+    sent1_count = sum(len(e) for s in test_data for e in s['sentence1_entities'].values())
+    sent2_count = sum(len(e) for s in test_data for e in s['sentence2_entities'].values())
+    implicit_count = sum(len(s['implicit_refs']) for s in test_data)
+    
+    print(f"\n   Sentence 1 entities: {sent1_count}")
+    print(f"   Sentence 2 entities: {sent2_count}")
+    print(f"   Implicit references: {implicit_count}")
     
     # Initialize evaluator
-    evaluator = ModelEvaluator(test_data)
+    evaluator = MultiSentenceNEREvaluator(test_data)
     
-    # Run Regex baseline
-    print("\n2. Running Regex baseline...")
+    # Run Regex
+    print(f"\n2. Running Regex baseline...")
     regex_predictions = []
     regex_latencies = []
     
@@ -92,9 +96,8 @@ async def _run_experiment_async(model_name, num_samples):
         regex_latencies.append(time.time() - start_time)
         regex_predictions.append(pred)
         
-        # Show progress for every sample
         print(f"\r   Processed {i + 1}/{len(test_data)} samples...", end='', flush=True)
-    print()  # New line after progress
+    print()
     
     regex_results = evaluator.evaluate_model(
         'Regex',
@@ -103,11 +106,10 @@ async def _run_experiment_async(model_name, num_samples):
         regex_latencies
     )
     
-    print(f"\n   Regex Results:")
-    print(f"   Overall F1: {regex_results['metrics']['overall_f1']:.3f}")
-    print(f"   Avg Latency: {regex_results['avg_latency']*1000:.2f}ms")
+    print(f"   Explicit F1: {regex_results['metrics']['overall_explicit_f1']:.3f}")
+    print(f"   Implicit F1: {regex_results['metrics']['overall_implicit_f1']:.3f}")
     
-    # Run spaCy baseline
+    # Run spaCy
     print(f"\n3. Running spaCy baseline...")
     spacy_predictions = []
     spacy_latencies = []
@@ -118,9 +120,8 @@ async def _run_experiment_async(model_name, num_samples):
         spacy_latencies.append(time.time() - start_time)
         spacy_predictions.append(pred)
         
-        # Show progress for every sample
         print(f"\r   Processed {i + 1}/{len(test_data)} samples...", end='', flush=True)
-    print()  # New line after progress
+    print()
     
     spacy_results = evaluator.evaluate_model(
         'spaCy',
@@ -129,9 +130,8 @@ async def _run_experiment_async(model_name, num_samples):
         spacy_latencies
     )
     
-    print(f"\n   spaCy Results:")
-    print(f"   Overall F1: {spacy_results['metrics']['overall_f1']:.3f}")
-    print(f"   Avg Latency: {spacy_results['avg_latency']*1000:.2f}ms")
+    print(f"   Explicit F1: {spacy_results['metrics']['overall_explicit_f1']:.3f}")
+    print(f"   Implicit F1: {spacy_results['metrics']['overall_implicit_f1']:.3f}")
     
     # Run DSPy
     print(f"\n4. Running DSPy with {model_name} (Concurrent)...")
@@ -141,12 +141,13 @@ async def _run_experiment_async(model_name, num_samples):
     max_concurrent = calculate_safe_concurrency(rpm_limit=500, avg_request_duration=2.0)
     print(f"   Using {max_concurrent} concurrent workers")
     
-    extractor = NERExtractor()
+    # Use the advanced implicit extractor to test implicit resolution
+    extractor = NERExtractorCoTFewShot()
     
     # Progress callback
     def print_progress(idx):
         print(f"\r   Processed {idx + 1}/{len(test_data)} samples...", end='', flush=True)
-        
+
     predictions, latencies, histories, token_usages = await process_samples_concurrently(
         test_data,
         extractor,
@@ -154,13 +155,7 @@ async def _run_experiment_async(model_name, num_samples):
         max_concurrent=max_concurrent,
         progress_callback=print_progress
     )
-    print()  # New line after progress
-    
-    # Calculate estimated cost using token usage if available, else fallback to average
-    # The evaluator uses average token counts if token_usages not provided, but here we have exact usage!
-    # However, ModelEvaluator.evaluate_model doesn't accept token_usages directly for cost calc yet,
-    # it uses the config. But we can update it or just let it estimate.
-    # For now, let's stick to the existing estimation in evaluate_model for consistency.
+    print()
     
     dspy_results = evaluator.evaluate_model(
         f'DSPy ({model_name})',
@@ -169,21 +164,20 @@ async def _run_experiment_async(model_name, num_samples):
         latencies
     )
     
-    print(f"\n   DSPy Results:")
-    print(f"   Overall F1: {dspy_results['metrics']['overall_f1']:.3f}")
-    print(f"   Estimated Cost: ${dspy_results['estimated_cost']:.4f}")
-    print(f"   Avg Latency: {dspy_results['avg_latency']*1000:.2f}ms")
+    print(f"   Explicit F1: {dspy_results['metrics']['overall_explicit_f1']:.3f}")
+    print(f"   Implicit F1: {dspy_results['metrics']['overall_implicit_f1']:.3f}")
     
     # Save results
-    print("\n5. Saving results...")
+    print(f"\n5. Saving results...")
     output_dir = Path(__file__).parent.parent / 'outputs'
     output_dir.mkdir(exist_ok=True)
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_path = output_dir / f'ner_results_{timestamp}.json'
+    output_path = output_dir / f'multi_sentence_ner_results_{timestamp}.json'
     
     results = {
         'experiment': {
+            'type': 'multi_sentence_ner',
             'model': model_name,
             'num_samples': num_samples,
             'timestamp': timestamp
@@ -206,27 +200,48 @@ async def _run_experiment_async(model_name, num_samples):
     
     # Print summary
     print("\n" + "="*80)
-    print("SUMMARY")
+    print("SUMMARY - EXPLICIT EXTRACTION (Sentence 1)")
     print("="*80)
-    print(f"\nMetric Comparison:")
-    print(f"  Overall F1:")
-    print(f"    Regex:  {regex_results['metrics']['overall_f1']:.3f}")
-    print(f"    spaCy:  {spacy_results['metrics']['overall_f1']:.3f}")
-    print(f"    DSPy:   {dspy_results['metrics']['overall_f1']:.3f}")
+    print(f"Overall F1:")
+    print(f"    Regex:  {regex_results['metrics']['overall_explicit_f1']:.3f}")
+    print(f"    spaCy:  {spacy_results['metrics']['overall_explicit_f1']:.3f}")
+    print(f"    DSPy:   {dspy_results['metrics']['overall_explicit_f1']:.3f}")
     
-    print(f"\n  By Entity Type (F1):")
+    print(f"\nBy Entity Type (F1):")
     for entity_type in ['PER', 'ORG', 'LOC', 'MISC']:
-        regex_f1 = regex_results['metrics'][f'{entity_type}_f1']
-        spacy_f1 = spacy_results['metrics'][f'{entity_type}_f1']
-        dspy_f1 = dspy_results['metrics'][f'{entity_type}_f1']
-        print(f"    {entity_type}: Regex={regex_f1:.3f}, spaCy={spacy_f1:.3f}, DSPy={dspy_f1:.3f}")
+        regex_f1 = regex_results['metrics'].get(f'explicit_{entity_type}_f1', 0)
+        spacy_f1 = spacy_results['metrics'].get(f'explicit_{entity_type}_f1', 0)
+        dspy_f1 = dspy_results['metrics'].get(f'explicit_{entity_type}_f1', 0)
+        count = int(regex_results['metrics'].get(f'explicit_{entity_type}_count', 0))
+        
+        if count > 0:
+            print(f"    {entity_type} (n={count}): Regex={regex_f1:.3f}, spaCy={spacy_f1:.3f}, DSPy={dspy_f1:.3f}")
     
-    print(f"\n  Cost & Latency:")
+    print("\n" + "="*80)
+    print("SUMMARY - IMPLICIT RESOLUTION (Sentence 2)")
+    print("="*80)
+    print(f"Overall F1:")
+    print(f"    Regex:  {regex_results['metrics']['overall_implicit_f1']:.3f}")
+    print(f"    spaCy:  {spacy_results['metrics']['overall_implicit_f1']:.3f}")
+    print(f"    DSPy:   {dspy_results['metrics']['overall_implicit_f1']:.3f}")
+    
+    print(f"\nBy Entity Type (F1):")
+    for entity_type in ['PER', 'ORG', 'LOC', 'MISC']:
+        regex_f1 = regex_results['metrics'].get(f'implicit_{entity_type}_f1', 0)
+        spacy_f1 = spacy_results['metrics'].get(f'implicit_{entity_type}_f1', 0)
+        dspy_f1 = dspy_results['metrics'].get(f'implicit_{entity_type}_f1', 0)
+        count = int(regex_results['metrics'].get(f'implicit_{entity_type}_count', 0))
+        
+        if count > 0:
+            print(f"    {entity_type} (n={count}): Regex={regex_f1:.3f}, spaCy={spacy_f1:.3f}, DSPy={dspy_f1:.3f}")
+    
+    print("\n" + "="*80)
+    print("COST & LATENCY")
+    print("="*80)
     print(f"    Regex: $0.0000, {regex_results['avg_latency']*1000:.2f}ms avg")
     print(f"    spaCy: $0.0000, {spacy_results['avg_latency']*1000:.2f}ms avg")
     print(f"    DSPy:  ${dspy_results['estimated_cost']:.4f}, {dspy_results['avg_latency']*1000:.2f}ms avg")
-    
-    print("\n" + "="*80)
+    print("="*80)
     
     return results
 
@@ -234,11 +249,11 @@ async def _run_experiment_async(model_name, num_samples):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='Run NER 3-way comparison')
-    parser.add_argument('--model', default='qwen-80b',
-                       choices=['gpt-4o-mini', 'gpt-4o', 'o1-mini','qwen-80b'],
+    parser = argparse.ArgumentParser(description='Run multi-sentence NER comparison')
+    parser.add_argument('--model', default='gpt-4o-mini',
+                       choices=['gpt-4o-mini', 'gpt-4o', 'o1-mini'],
                        help='Model to use for DSPy')
-    parser.add_argument('--samples', type=int, default=100,
+    parser.add_argument('--samples', type=int, default=200,
                        help='Number of samples to evaluate')
     args = parser.parse_args()
     
