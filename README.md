@@ -93,7 +93,7 @@ uv run scripts\generate_multi_sentence_ner_data.py
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
-**Available Model Online:**
+**Available Models Online:**
 - `gpt-4o-mini` (Input: $0.15 per 1M tokens, Output: $0.60 per 1M tokens)
 - `gpt-4o` (Input: $2.50 per 1M tokens, Output: $10.00 per 1M tokens)
 
