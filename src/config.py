@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+LOCAL_HOST_IP = "http://localhost:1234/v1/"
 MODELS = {
     'gpt-4o-mini': {
         'provider': 'openai',
@@ -37,11 +39,11 @@ MODELS = {
     }
 }
 
-def get_lm(model_name='qwen3-8b'):
+def get_lm(model_name='gpt-4o-mini'):
     config = MODELS[model_name]
     if config['provider'] == 'lm_studio':
         api_key = 'local'
-        api_base = "http://framework.tawny-bellatrix.ts.net:1234/v1/"
+        api_base = LOCAL_HOST_IP
         temperature = None
     else:
         api_key=os.getenv('OPENAI_API_KEY')
@@ -54,6 +56,7 @@ def get_lm(model_name='qwen3-8b'):
         api_key=api_key,
         temperature=temperature
     )
-    # Disable DSPy's internal cache to get actual OpenAI usage data (including cached_tokens)
-    lm.cache = False
+    if config['provider'] == 'openai':
+        # Disable DSPy's internal cache to get actual OpenAI usage data (including cached_tokens)
+        lm.cache = False
     return lm
