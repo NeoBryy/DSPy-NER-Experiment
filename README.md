@@ -124,7 +124,7 @@ The `experiments/` directory contains scripts to test different aspects of NER p
 `experiments/run_baseline_comparison.py`
 - **Tests**: Explicit entity extraction on single sentences.
 - **Compares**: Regex vs spaCy vs DSPy (Standard).
-- **Data**: `src/data/ner_samples.json`
+- **Data**: `src/data/ner_samples.json` (Must generate in advance)
 - **Metrics**: Standard Precision, Recall, F1, Cost, Latency.
 - **Use case**: General purpose NER benchmarking.
 
@@ -132,7 +132,7 @@ The `experiments/` directory contains scripts to test different aspects of NER p
 `experiments/run_multi_sentence_comparison.py`
 - **Tests**: Ability to resolve implicit references across sentences (e.g. "The company" -> "Apple").
 - **Compares**: Regex vs spaCy vs DSPy (CoT + Few-Shot).
-- **Data**: `src/data/ner_multi_sentence_samples.json`
+- **Data**: `src/data/ner_multi_sentence_samples.json` (Must generate in advance)
 - **Metrics**: Separates **Explicit F1** (Sentence 1) from **Implicit F1** (Sentence 2).
 - **Use case**: verifying that DSPy can handle context that other models miss.
 
