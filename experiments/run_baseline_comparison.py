@@ -235,8 +235,8 @@ async def _run_experiment_async(model_name, num_samples):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Run NER 3-way comparison')
-    parser.add_argument('--model', default='qwen-80b',
-                       choices=['gpt-4o-mini', 'gpt-4o', 'o1-mini','qwen-80b'],
+    parser.add_argument('--model', default='gpt-4o-mini',
+                       choices=['gpt-4o-mini', 'gpt-4o', 'o1-mini','qwen-80b','qwen3-8b','gemma-3-12b'],
                        help='Model to use for DSPy')
     parser.add_argument('--samples', type=int, default=100,
                        help='Number of samples to evaluate')

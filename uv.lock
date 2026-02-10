@@ -476,6 +476,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "spacy" },
     { name = "streamlit" },
+    { name = "tenacity" },
 ]
 
 [package.metadata]
@@ -489,6 +490,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "spacy", specifier = ">=3.7.0" },
     { name = "streamlit", specifier = ">=1.30.0" },
+    { name = "tenacity", specifier = ">=8.0.0" },
 ]
 
 [[package]]
