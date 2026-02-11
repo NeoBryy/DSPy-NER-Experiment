@@ -264,5 +264,14 @@ async def _run_optimization_async(model_name):
         json.dump(make_json_serializable(all_results), f, indent=2, ensure_ascii=False)
     print(f"\nResults saved to {output_path}")
 
-if __name__ == "__main__":
-    run_optimization()
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Run optimisations')
+    parser.add_argument('--model', default='gpt-4o-mini',
+                       choices=list(MODELS.keys()),
+                       help='Model to use for DSPy')
+    args = parser.parse_args()
+    
+    run_optimization(args.model)
