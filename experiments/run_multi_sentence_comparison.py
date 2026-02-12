@@ -251,7 +251,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Run multi-sentence NER comparison')
     parser.add_argument('--model', default='gpt-4o-mini',
-                       choices=['gpt-4o-mini', 'gpt-4o', 'o1-mini'],
+                       choices=list(MODELS.keys()),
                        help='Model to use for DSPy')
     parser.add_argument('--samples', type=int, default=200,
                        help='Number of samples to evaluate')

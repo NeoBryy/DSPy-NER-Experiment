@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import dspy
 import json
-from src.config import get_lm
+from src.config import get_lm, MODELS
 from src.modules.entity_extractor_implicit import (
     NERExtractorCoTFewShot,
     NERExtractorCoT,
@@ -209,4 +209,14 @@ def run_caching_test():
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Run optimisations')
+    parser.add_argument('--model', default='gpt-4o-mini',
+                       choices=list(MODELS.keys()),
+                       help='Model to use for DSPy')
+    args = parser.parse_args()
+    if args.model != 'gpt-4o-mini':
+        print("No model should be selected, this test is configured to show OpenAIs caching with gpt-4o-mini")
+        exit()
     run_caching_test()
+    

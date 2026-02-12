@@ -66,52 +66,58 @@ MISC: None
 
 ## 🚀 Quick Start
 
+### 0. Requirements
+  - [Astral UV](https://docs.astral.sh/uv/)
+  - [Local LLM Server](https://lmstudio.ai/)(Optional)
+
 ### 1. Setup
 
-```powershell
+```bash
 # Clone and navigate to project
-cd dspy-llm
+git clone https://github.com/NeoBryy/DSPy-NER-Experiment.git
+cd DSPy-NER-Experiment
 
-# Create virtual environment
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-
-# Install dependencies
-pip install -r requirements.txt
+# Create virtual environment & install dependencies
+uv sync 
 
 # Download spaCy model
-python -m spacy download en_core_web_sm
+uv run spacy download en_core_web_sm
 
 # Generate NER dataset (200 records)
-python scripts\generate_ner_data.py --records 200 # feel free to edit the examples for each entity!
+uv run scripts\generate_ner_data.py --records 200 # feel free to edit the examples for each entity!
 
 # Generate Implicit NER dataset (essential for implicit experiments)
-python scripts\generate_multi_sentence_ner_data.py
+uv run scripts\generate_multi_sentence_ner_data.py
 
 # Create .env file with your OpenAI API key https://platform.openai.com/api-keys
 echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
-**Available Models:**
+**Available Models Online:**
 - `gpt-4o-mini` (Input: $0.15 per 1M tokens, Output: $0.60 per 1M tokens)
 - `gpt-4o` (Input: $2.50 per 1M tokens, Output: $10.00 per 1M tokens)
 
+**Adding your own local Models:**  
+You can also add and use your own LLM locally instead, bringing the token cost down to just your electricity usage...  
+All you need to do is edit the src/config.py file with the models you want to run. It is populated with a few examples.
+
+
 ### 2. Run Experiment
 
-```powershell
+```bash
 # Run 3-way comparison of explicit NER with 100 samples (terminal)
-python experiments\run_baseline_comparison.py --samples 100
+uv run experiments\run_baseline_comparison.py --samples 100
 
 # Or use a different model (also in terminal)
-python experiments\run_baseline_comparison.py --model gpt-4o --samples 50
+uv run experiments\run_baseline_comparison.py --model gpt-4o --samples 50
 ```
 
 ### 3. Launch Dashboard
 
-```powershell
+```bash
 # This loads the streamlit app, which allows you to configure and run experiments like the
 # example above but with nicely formatted visuals and outputs to explore 📈
-streamlit run app.py
+uv run streamlit run app.py
 ```
 
 Then open http://localhost:8501 in your browser.
@@ -219,7 +225,9 @@ dspy-llm/
 │   ├── generate_ner_data.py             # Standard dataset generator
 │   └── generate_multi_sentence_ner_data.py # Implicit dataset generator
 ├── app.py                               # Streamlit dashboard entry point
-├── requirements.txt                     # Python dependencies
+├── pyproject.toml                       # Python project details
+├── .python-version                      # used by uv to specify environment
+├── uv.lock                              # uv generated file to specify environment
 └── outputs/                             # Experiment results (gitignored)
 ```
 
@@ -325,17 +333,17 @@ Generated using templates to ensure clean, unambiguous labels.
 
 ### Use Different Models
 
-```powershell
-python experiments\run_baseline_comparison.py --model gpt-4o
+```bash
+uv run experiments\run_baseline_comparison.py --model gpt-4o
 ```
 
 ### Generate Custom Dataset
 
 Customize the number of records or modify entity types:
 
-```powershell
+```bash
 # Generate more records
-python scripts\generate_ner_data.py --records 500
+uv run scripts\generate_ner_data.py --records 500
 
 # Edit scripts/generate_ner_data.py to customize entity templates
 ```
